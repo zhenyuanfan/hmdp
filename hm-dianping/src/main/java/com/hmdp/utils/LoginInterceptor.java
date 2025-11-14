@@ -21,7 +21,7 @@ public class LoginInterceptor implements HandlerInterceptor {
             return false;
         }
         //3.如果用户存在，放行
-        UserHolder.saveUser(BeanUtil.copyProperties(user, UserDTO.class));
+        UserHolder.saveUser((UserDTO) user);
         return true;
     }
 
