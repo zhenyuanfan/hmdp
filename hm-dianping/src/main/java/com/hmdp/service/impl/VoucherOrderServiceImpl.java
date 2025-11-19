@@ -7,8 +7,10 @@ import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +33,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private RedisIdWorker redisIdWorker;
 
     @Override
-    @Transactional
+
     public Result killOrder(Long voucherId) {
         //1.查询优惠券
         SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
@@ -47,6 +49,22 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (stock < 1) {
             //4.不充足，返回错误信息
             return Result.fail("库存不足1");
+        }
+        //5.扣减库存
+        Long id = UserHolder.getUser().getId();
+        synchronized (id.toString().intern()) {
+            IVoucherOrderService proxy = (IVoucherOrderService)AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId);
+        }
+    }
+    @Override
+    @Transactional
+    public Result createVoucherOrder(Long voucherId) {
+        //判断用户是否已经购买过
+        Integer count = query().eq("voucher_id", voucherId).eq("user_id", UserHolder.getUser().getId()).count();
+        if (count > 0) {
+            //已经购买过，返回错误信息
+            return Result.fail("已经购买过");
         }
         //5.充足，扣减库存
         boolean success = seckillVoucherService.update()
@@ -66,6 +84,5 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         order.setVoucherId(voucherId);
         save(order);
         return Result.ok(order1);
-
     }
 }
