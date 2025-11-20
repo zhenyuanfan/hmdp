@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import com.hmdp.config.RedissonConfig;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
@@ -12,6 +13,8 @@ import com.hmdp.utils.Ilock;
 import com.hmdp.utils.IlockImpl;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -36,7 +39,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private RedisIdWorker redisIdWorker;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
-
+    @Resource
+    private RedissonClient redissonClient;
     @Override
 
     public Result killOrder(Long voucherId) {
@@ -61,17 +65,28 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 //            IVoucherOrderService proxy = (IVoucherOrderService)AopContext.currentProxy();
 //            return proxy.createVoucherOrder(voucherId);
 //        }
-        IlockImpl ilock1 = new IlockImpl(stringRedisTemplate, "order" + id);
-        boolean tryLock = ilock1.tryLock(10);
+        RLock lock = redissonClient.getLock("order" + id);
+        boolean tryLock = lock.tryLock();
         if (!tryLock){
             return Result.fail("一人只能下一单");
         }
         try {
             IVoucherOrderService proxy = (IVoucherOrderService)AopContext.currentProxy();
             return proxy.createVoucherOrder(voucherId);
-        } finally {
-            ilock1.unLock();
+        }finally {
+            lock.unlock();
         }
+//        IlockImpl ilock1 = new IlockImpl(stringRedisTemplate, "order" + id);
+//        boolean tryLock = ilock1.tryLock(10);
+//        if (!tryLock){
+//            return Result.fail("一人只能下一单");
+//        }
+//        try {
+//            IVoucherOrderService proxy = (IVoucherOrderService)AopContext.currentProxy();
+//            return proxy.createVoucherOrder(voucherId);
+//        } finally {
+//            ilock1.unLock();
+//        }
 
     }
     @Override
